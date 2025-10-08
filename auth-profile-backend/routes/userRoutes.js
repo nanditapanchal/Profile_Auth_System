@@ -8,6 +8,13 @@ import { protect } from "../middleware/authMiddleware.js";
 import dotenv from "dotenv";
 dotenv.config();
 
+import {v2 as cloudinary} from "cloudinary";
+cloudinary.config({ 
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
+  api_key: process.env.CLOUDINARY_API_KEY, 
+  api_secret: process.env.CLOUDINARY_API_SECRET 
+});
+
 const router = express.Router();
 
 const storage = multer.diskStorage({
@@ -129,15 +136,23 @@ router.post("/upload", protect, upload.single("profileImage"), async (req, res) 
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-    const imagePath = `${process.env.BASE_URL}/${req.file.path}`;
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "profile_images",
+    });
+
+    // Update user profile with Cloudinary URL
     const user = await User.findById(req.user._id);
-    user.profileImage = imagePath;
+    user.profileImage = result.secure_url;
     await user.save();
 
-    res.json({ message: "Image uploaded", profileImage: imagePath });
+    res.json({
+      message: "Image uploaded successfully",
+      profileImage: result.secure_url,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Upload error" });
+    console.error("Cloudinary Upload Error:", error);
+    res.status(500).json({ message: "Cloudinary Upload error" });
   }
 });
 
